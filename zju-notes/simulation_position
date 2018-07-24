@@ -1,0 +1,117 @@
+#!/usr/bin/python
+# Simulator for the boat position based on velocity and heading
+
+
+import rospy
+from std_msgs.msg import Float64, Float32
+import time, math
+import numpy as np
+from sensor_msgs.msg import NavSatFix
+from sailing_robot.msg import Velocity
+from LatLon import LatLon
+
+from sailing_robot.navigation import Navigation
+
+
+class Position_simu():
+    def __init__(self):
+        """ Publish position based on velocity and heading
+        """
+        self.position_pub = rospy.Publisher('position', NavSatFix, queue_size=10)
+
+        rospy.init_node("simulation_position", anonymous=True)
+
+        rospy.Subscriber('heading', Float32, self.update_heading)
+        self.heading = rospy.get_param("simulation/heading_init")
+
+        rospy.Subscriber('gps_velocity', Velocity, self.update_velocity)
+        self.velocity = (0, 0)
+
+        self.freq = rospy.get_param("config/rate")
+        self.rate = rospy.Rate(self.freq)
+
+        # Water stream
+        self.water_stream_dir = rospy.get_param("simulation/velocity/water_stream_direction")
+        self.water_stream_speed = rospy.get_param("simulation/velocity/water_stream_speed")
+
+        #Noise
+        self.water_noise_direction_range = rospy.get_param('simulation/velocity/water_noise_direction_range')
+        self.water_noise_speed_range = rospy.get_param('simulation/velocity/water_noise_speed_range')
+
+        # Read init position form the /wp parameters
+        try:
+            wp_list = rospy.get_param('wp/list')
+            wp0 = wp_list[0]
+        except KeyError:
+            task_list = rospy.get_param('wp/tasks')
+            wp0 = task_list[0]['waypoint']
+        wp_table = rospy.get_param('wp/table')
+        init_position = wp_table[wp0]
+
+        utm_zone = rospy.get_param('navigation/utm_zone')
+        self.nav = Navigation(utm_zone=utm_zone)
+        self.utm_position = self.nav.latlon_to_utm(init_position[0], init_position[1])
+
+        rospy.loginfo("Position simulated")
+
+        self.position_publisher()
+
+
+    def update_heading(self, msg):
+        self.heading = msg.data
+
+    def update_velocity(self, msg):
+        # velocity in the boat reference system
+        self.velocity = (msg.speed * math.cos(math.radians(msg.heading - self.heading)),
+                         msg.speed * math.sin(math.radians(msg.heading - self.heading)))
+
+    def position_publisher(self):
+
+        while not rospy.is_shutdown():
+            #Adding Gaussian noise to water stream
+            if self.water_noise_direction_range:
+                noise_direction = np.random.normal(scale= self.water_noise_direction_range)
+            else:
+                noise_direction = 0
+
+            if self.water_noise_speed_range:
+                noise_speed = np.random.normal(scale= self.water_noise_speed_range)
+            else:
+                noise_speed = 0            
+
+            self.water_stream_speed = self.water_stream_speed + noise_speed
+            self.water_stream_dir = self.water_stream_dir + noise_direction
+            #rospy.logwarn(self.water_stream_speed)
+            #rospy.logwarn(self.water_stream_dir)
+
+
+            #the approximate true speed and direction of water stream
+            water_stream_x = -self.water_stream_speed * math.sin(math.radians(self.water_stream_dir))
+            water_stream_y = -self.water_stream_speed * math.cos(math.radians(self.water_stream_dir))
+
+
+            dx = (self.velocity[0] * math.sin(math.radians(self.heading)) - \
+                self.velocity[1] * math.cos(math.radians(self.heading)) + water_stream_x) / self.freq
+
+            dy = (self.velocity[0] * math.cos(math.radians(self.heading)) + \
+                self.velocity[1] * math.sin(math.radians(self.heading)) + water_stream_y) / self.freq
+            
+
+            msg = NavSatFix()
+            self.utm_position = (self.utm_position[0] + dx, self.utm_position[1] + dy)
+
+            position = self.nav.utm_to_latlon(self.utm_position[0], self.utm_position[1])
+            msg.latitude = position.lat.decimal_degree
+            msg.longitude = position.lon.decimal_degree
+            
+
+            self.position_pub.publish(msg)
+
+            self.rate.sleep()
+
+
+if __name__ == '__main__':
+    try:
+        Position_simu()
+    except rospy.ROSInterruptException:
+        pass
