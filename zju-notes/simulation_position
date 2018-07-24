@@ -1,7 +1,5 @@
 #!/usr/bin/python
 # Simulator for the boat position based on velocity and heading
-
-
 import rospy
 from std_msgs.msg import Float64, Float32
 import time, math
@@ -18,6 +16,9 @@ class Position_simu():
         """ Publish position based on velocity and heading
         """
         self.position_pub = rospy.Publisher('position', NavSatFix, queue_size=10)
+        # init stream_direction and speed topic
+        #self.stream_direction_pub = rospy.Publisher('stream_direction', Float32, queue_size=10)
+        #self.stream_speed_pub = rospy.Publisher('stream_speed', Float32, queue_size=10)
 
         rospy.init_node("simulation_position", anonymous=True)
 
@@ -77,18 +78,21 @@ class Position_simu():
             if self.water_noise_speed_range:
                 noise_speed = np.random.normal(scale= self.water_noise_speed_range)
             else:
-                noise_speed = 0            
-
-            self.water_stream_speed = self.water_stream_speed + noise_speed
-            self.water_stream_dir = self.water_stream_dir + noise_direction
-            #rospy.logwarn(self.water_stream_speed)
-            #rospy.logwarn(self.water_stream_dir)
+                noise_speed = 0 
 
 
-            #the approximate true speed and direction of water stream
-            water_stream_x = -self.water_stream_speed * math.sin(math.radians(self.water_stream_dir))
-            water_stream_y = -self.water_stream_speed * math.cos(math.radians(self.water_stream_dir))
+            # the approximate ture speed and direction of water 
+            proximate_water_stream_speed = self.water_stream_speed + noise_speed 
+            proximate_water_stream_dir = self.water_stream_dir + noise_direction4
 
+            rospy.logwarn(proximate_water_stream_speed)
+            rospy.logwarn(proximate_water_stream_dir)
+
+            water_stream_x = -proximate_water_stream_speed * math.sin(math.radians(proximate_water_stream_dir))
+            water_stream_y = -proximate_water_stream_speed * math.cos(math.radians(proximate_water_stream_dir))
+
+            #self.stream_direction_pub.publish(proximate_water_stream_dir)
+            #self.stream_speed_pub.publish(proximate_water_stream_speed)
 
             dx = (self.velocity[0] * math.sin(math.radians(self.heading)) - \
                 self.velocity[1] * math.cos(math.radians(self.heading)) + water_stream_x) / self.freq
