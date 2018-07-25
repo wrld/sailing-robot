@@ -1,0 +1,39 @@
+#!/usr/bin/env python
+import serial
+import rospy
+from std_msgs.msg import Float32
+from std_msgs.msg import Float64
+from std_msgs.msg import String
+import smbus
+import time
+#from dynamic_reconfigure.server import Server
+#import sailing_robot
+#from sailing_robot.tasks import tasks_from_wps
+#from sailing_robot.tasks_ros import RosTasksRunner
+#from sailing_robot.navigation import Navigation
+#from sailing_robot.cfg import TackVotingConfig
+#from sensor_msgs.msg import NavSatFix
+bus=smbus.SMBus(1)#i2c read from dianweiqi
+def talker():
+    pub = rospy.Publisher("goal_heading", Float32, queue_size=10)
+    pub_state = rospy.Publisher("sailing_state", String, queue_size=10)
+    pub_wind=rospy.Publisher("wind_direction_apparent",Float64,queue_size=10)
+    rospy.init_node('talker', anonymous=True)
+    rate = rospy.Rate(rospy.get_param("config/rate"))
+    while not rospy.is_shutdown():
+        state='normal'
+        goal_heading=0
+        wind_direction_apparent=bus.read_byte_data(0x48,0x40)/255.0*360.0
+        pub.publish(goal_heading)
+        pub_state.publish(state)
+        pub_wind.publish(wind_direction_apparent)
+        #hello_str = "normal" % rospy.get_time()
+       # rospy.loginfo(hello_str)
+       # pub.publish(hello_str)
+        rate.sleep()
+
+if __name__ == '__main__':
+    try:
+        talker()
+    except rospy.ROSInterruptException:
+        pass
