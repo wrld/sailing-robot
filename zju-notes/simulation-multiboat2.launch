@@ -2,7 +2,23 @@
     <!--
     General test file to launch all existing nodes to talk to real hardware
     -->
+ <group ns = "whole">
+<!--
+Parameters
+-->
 
+<rosparam file="$(find sailing_robot)/launch/parameters/default.yaml" command="load"/>
+
+<rosparam file="$(find sailing_robot)/launch/parameters/calibration_laser.yaml" ns="/calibration" command="load"/>
+<rosparam file="$(find sailing_robot)/launch/parameters/sailsettings_blackpython.yaml" command="load"/>
+<rosparam file="$(find sailing_robot)/launch/parameters/simulation_waypoints.yaml" command="load"/>
+<!--rosparam file="$(find sailing_robot)/launch/parameters/eastleigh_waypoints.yaml" command="load"/-->
+<!--changed rosparam file="$(find sailing_robot)/launch/parameters/archive/Horten/horten_fleetrace_waypoints.yaml" command="load"/-->
+
+<rosparam file="$(find sailing_robot)/launch/parameters/simulator.yaml" command="load"/>
+
+<node name = "communicator" pkg="sailing_robot" type = "communicator" />
+     
     <group ns = "pirate">
         <!--
         Parameters
@@ -77,5 +93,7 @@
         <node pkg="tf" type="static_transform_publisher" name="link1_broadcaster" args="0.0 0.0 0.0 0.0 0.0 0.0 map my_frame 100" />
 
     </group>
+     
+ </group>
  </launch>
 
