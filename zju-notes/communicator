@@ -1,0 +1,82 @@
+#!/usr/bin/python
+# Simulator for the boat position based on velocity and heading
+
+
+import rospy
+from std_msgs.msg import Float64, Float32
+import time, math
+from sensor_msgs.msg import NavSatFix
+from LatLon import LatLon
+
+from sailing_robot.navigation import Navigation
+
+
+
+class Communicate_position():
+    def __init__(self):
+        """ Publish position based on velocity and heading
+        """
+	self.position1 = NavSatFix()
+	self.position2 = NavSatFix()
+
+        rospy.init_node("communicator", anonymous=True)
+
+        rospy.Subscriber('/whole/pirate/position', NavSatFix, self.update_position1)
+        rospy.Subscriber('/whole/greenBoat/position', NavSatFix, self.update_position2)
+
+        self.comu1_pub = rospy.Publisher('position1', NavSatFix, queue_size=10)
+        self.comu2_pub = rospy.Publisher('position2', NavSatFix, queue_size=10)
+
+        self.freq = rospy.get_param("config/rate")
+        self.rate = rospy.Rate(self.freq)
+	
+	self.position1_publisher()
+	#self.position2_publisher()
+
+
+    def update_position1(self, msg):
+        self.position1 = msg
+	
+    def update_position2(self, msg):
+        self.position2= msg
+
+    def position1_publisher(self):
+        while not rospy.is_shutdown():
+
+            rospy.Subscriber('/whole/pirate/position', NavSatFix, self.update_position1)
+            rospy.Subscriber('/whole/greenBoat/position', NavSatFix, self.update_position2)
+	   
+	    msg1 = NavSatFix()
+	    msg2 = NavSatFix()
+
+	    msg1.longitude = self.position1.longitude
+	    msg1.latitude = self.position1.latitude
+
+	    self.comu1_pub.publish(msg1)
+
+
+	    msg2.longitude = self.position2.longitude
+	    msg2.latitude = self.position2.latitude
+
+	    self.comu2_pub.publish(msg2)
+
+	    self.rate.sleep()
+
+'''  def position2_publisher(self):
+        while not rospy.is_shutdown():            
+            msg = NavSatFix()
+	    msg.longitude = self.position2.longitude
+	    msg.latitude = self.position2.latitude
+ 
+            self.comu2_pub.publish(msg)
+
+            self.rate.sleep()'''
+
+
+
+if __name__ == '__main__':
+
+    try:
+        Communicate_position()
+    except rospy.ROSInterruptException:
+        pass
