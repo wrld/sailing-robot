@@ -66,7 +66,7 @@ srv = Server(TackVotingConfig, tack_voting_callback)
 goal_heading_publisher(tasks_runner)
 ```
 
-​	前面是接收订阅的话题中的信息，最后一句是调用了上面定义的一个函数，这个函数也是发布函数
+​#	前面是接收订阅的话题中的信息，最后一句是调用了上面定义的一个函数，这个函数也是发布函数
 
 
 
