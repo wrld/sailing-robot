@@ -39,6 +39,7 @@ class info:
         self.area_record = {}
         self.node_x = 0
         self.node_y = 0
+        self.node_number = 72
         for i in range(64):
             self.area_record[str(i)] = []
         
@@ -54,33 +55,42 @@ class info:
         self.my_position = msg
         self.my_utm_position = np.array(nav.latlon_to_utm(msg.latitude,msg.longitude))
         self.my_utm_position = self.my_utm_position - utm_origin
+        self.node_number =self.judgment_node(self.my_utm_position)
+
+        if self.node_x<=8 and self.node_y <=8 and self.node_x >0 and self.node_y >0:
+            self.area_record[str(self.node_number-1)].append('private')
+            self.area_record[str(self.node_number-1)] = list(set(self.area_record[str(self.node_number-1)]))
 
     def update_other_position(self, msg):
         self.update_other_position = msg
         other_utm_position = np.array(nav.latlon_to_utm(msg.latitude,msg.longitude))
         other_utm_position = other_utm_position - utm_origin
-        #rospy.logwarn(other_utm_position)
 
         # find out which zone does the greenboat belong to,
-        # and append its ID number to the zone's listss 
-        self.node_x = math.ceil((other_utm_position[0]-utm_positions[2][0]) / map_length * 8)
-        self.node_y = math.ceil((utm_positions[3][1]-other_utm_position[1]) / map_width * 8)
+        # and append its ID number to the zone's listss
+        node_number = self.judgment_node(other_utm_position)
+        if self.node_x<=8 and self.node_y <=8 and self.node_x >0 and self.node_y >0:
+            self.area_record[str(node_number-1)].append('other')
+            self.area_record[str(node_number-1)] = list(set(self.area_record[str(node_number-1)]))
+ 
+    def judgment_node(self,position):
+        self.node_x = math.ceil((position[0]-utm_positions[2][0]) / map_length * 8)
+        self.node_y = math.ceil((utm_positions[3][1]-position[1]) / map_width * 8)
         
         node_number = int(8 * (self.node_y - 1) + self.node_x)
-        
-        if self.node_x<=8 and self.node_y <=8 and self.node_x >0 and self.node_y >0:
-            self.area_record[str(node_number-1)].append(1)
-            self.area_record[str(node_number-1)] = list(set(self.area_record[str(node_number-1)]))
+        return node_number
+
 
 
 class cost_map:
     def __init__(self):
         self.publisher = rospy.Publisher("cost_map",cost_map_msg,queue_size=10)
+        #self.publisher = rospy.Publisher("cost_map",String,)
         rospy.init_node("cost_map",anonymous=True)
         
         self.rate = rospy.Rate(5)
         self.map = cost_map_msg()
-        
+
         # initialize the cost map with punish:0, reward:2
         # reward is calculated by max reward minus the number of ships reached the zone
         for i in range(area_num):
@@ -91,11 +101,12 @@ class cost_map:
         
 
     def print_map(self):
-        for i in range(area_num):
-            rospy.logwarn('ID: '+str(i+1)+'  reward: '+
-            str(self.map.reward[i])+'  punish: '+
-            str(self.map.punish[i]))
-    
+        rospy.logwarn('------startpoint: '+str(self.map.startpoint)+'    endpoint: '+ str(self.map.endpoint)+'--------')
+        # for i in range(area_num):
+        #     rospy.logwarn('ID: '+str(i+1)+'  reward: '+
+        #     str(self.map.reward[i])+'  punish: '+
+        #     str(self.map.punish[i]))
+
     def polardef(self):
         ang_pol = [ 0,
                    13.3727803547,
@@ -144,15 +155,22 @@ class cost_map:
                      0.688696381,]
         self.polar = scipy.interpolate.interp1d(ang_pol, speed_pol)
 
+
     def update_map(self):
         # reward & punish: 1-64 ID:1-64
+        endpoint_x_reward = 0
+        endpoint_y_reward = 0
+        reward_total = 0
         for i in range(area_num):
             # update reward
-            self.map.reward[i] = reward_max - len(info.area_record[str(i)])
+            if ((i+1)/8)>=4 and ((i+1)%8)<=4 and ((i+1)%8)>0:
+                self.map.reward[i] = 0
+            else:
+                self.map.reward[i] = reward_max - len(info.area_record[str(i)])
             
             # update punish
             y = math.ceil(float(i+1)/8)
-            x = i +1 - (y-1)*8
+            x = i+1 - (y-1)*8
 
             delta_x = (x-0.5)/8*map_length + utm_positions[2][0] - info.my_utm_position[0]
             delta_y = (8.5-y)/8*map_width + utm_positions[0][1] - info.my_utm_position[1]
@@ -168,6 +186,20 @@ class cost_map:
             rotation_angle = abs(info.heading - goal)/180*math.pi
             
             self.map.punish[i] = int(distance/self.polar(wind_goal) + rotation_coefficient*rotation_angle)
+            
+            endpoint_x_reward = endpoint_x_reward + self.map.reward[i] * x
+            endpoint_y_reward = endpoint_y_reward + self.map.reward[i] * y
+            reward_total = reward_total + self.map.reward[i]
+        
+        #update endpoint
+        endpoint_x_reward = round(endpoint_x_reward / reward_total)    
+        endpoint_y_reward = round(endpoint_y_reward / reward_total)
+        
+        self.map.endpoint = int(endpoint_x_reward + (endpoint_y_reward-1) * 8)
+        
+        #update startpoint
+        self.map.startpoint = info.node_number
+
 
         
 
