@@ -1,0 +1,449 @@
+#!/usr/bin/python
+
+import rospy
+from std_msgs.msg import Float64, Float32, Int16, String
+from sailing_robot.navigation import Navigation
+from sensor_msgs.msg import NavSatFix
+from sailing_robot.msg import cost_map_msg
+import numpy as np
+import matplotlib.pyplot as plt
+import math
+import scipy.interpolate
+
+wp_table = rospy.get_param('wp/table')
+waypoints = []
+for i in range(48):
+    waypoints.append(wp_table[str(i+2)])
+utm_zone = rospy.get_param('navigation/utm_zone')
+nav = Navigation(utm_zone=utm_zone)
+utm_positions = np.array([nav.latlon_to_utm(wp[0],wp[1]) for wp in waypoints])
+all_utm_positions = np.array([nav.latlon_to_utm(wp_table[wp][0],wp_table[wp][1]) for wp in wp_table])
+utm_origin = [all_utm_positions.T[0].mean(),all_utm_positions.T[1].mean()]
+utm_positions = utm_positions - utm_origin
+area_num = 48
+reward_max = 2
+rotation_coefficient = 1
+
+# x, y cordinates that divide the zones
+x = [-73.49,-53.14,-32.79,-12.41,7.97,28.32,48.67]
+y = [-63.70,-43.86,-24.03,-4.19,15.66,35.49,55.32]
+
+class info:
+    def __init__(self):
+        self.heading = 0
+        self.other_position = NavSatFix()
+        self.my_position = NavSatFix()
+        self.my_utm_position = np.array([0,0])
+        self.nav = Navigation(utm_zone=utm_zone)
+        self.wind_direction_apparent = 0
+        self.area_record = {}
+        for i in range(48):
+            self.area_record[str(i+2)] = []
+        
+
+    def update_heading(self, msg):
+        self.heading = msg.data
+        #rospy.logwarn(self.heading)
+
+    def update_wind(self, msg):
+        self.wind_direction_apparent = msg.data
+    
+    def update_my_position(self, msg):
+        self.my_position = msg
+        self.my_utm_position = np.array(nav.latlon_to_utm(msg.latitude,msg.longitude))
+        self.my_utm_position = self.my_utm_position - utm_origin
+
+    def update_other_position(self, msg):
+        self.update_other_position = msg
+        other_utm_position = np.array(nav.latlon_to_utm(msg.latitude,msg.longitude))
+        other_utm_position = other_utm_position - utm_origin
+        #rospy.logwarn(other_utm_position)
+
+        # find out which zone does the greenboat belong to,
+        # and append its ID number to the zone's listss 
+        # third
+        if other_utm_position[0]<x[3] and other_utm_position[1]<y[3]:
+            pass
+        # first
+        elif other_utm_position[0]>x[3] and other_utm_position[1]>y[3]:
+            if other_utm_position[0]<x[5] and other_utm_position[1]<y[5]:
+                if other_utm_position[0]<x[4] and other_utm_position[1]<y[4]:
+                    # ID:29
+                    self.area_record['29'].append(1)
+                    #rospy.logwarn(29)
+                    self.area_record['29'] = list(set(self.area_record['29']))
+                elif other_utm_position[0]>x[4] and other_utm_position[1]>y[4]:
+                    # ID:23
+                    self.area_record['23'].append(1)
+                    #rospy.logwarn(23)
+                    self.area_record['23'] = list(set(self.area_record['23']))
+                elif other_utm_position[0]<x[4] and other_utm_position[1]>y[4]:
+                    # ID:28
+                    self.area_record['28'].append(1)
+                    #rospy.logwarn(28)
+                    self.area_record['28'] = list(set(self.area_record['28']))
+                elif other_utm_position[0]>x[4] and other_utm_position[1]<y[4]:
+                    # ID:22
+                    self.area_record['22'].append(1)
+                    #rospy.logwarn(22)
+                    self.area_record['22'] = list(set(self.area_record['22']))
+            elif other_utm_position[0]>x[5] and other_utm_position[1]>y[5]:
+                if other_utm_position[0]<x[6] and other_utm_position[1]<y[6]:
+                    # ID:11
+                    self.area_record['11'].append(1)
+                    #rospy.logwarn(11)
+                    self.area_record['11'] = list(set(self.area_record['11']))
+                elif other_utm_position[0]>x[6] and other_utm_position[1]>y[6]:
+                    # ID:9
+                    self.area_record['9'].append(1)
+                    #rospy.logwarn(9)
+                    self.area_record['9'] = list(set(self.area_record['9']))
+                elif other_utm_position[0]<x[6] and other_utm_position[1]>y[6]:
+                    # ID:10
+                    self.area_record['10'].append(1)
+                    #rospy.logwarn(10)
+                    self.area_record['10'] = list(set(self.area_record['10']))
+                elif other_utm_position[0]>x[6] and other_utm_position[1]<y[6]:
+                    # ID:8
+                    self.area_record['8'].append(1)
+                    #rospy.logwarn(8)
+                    self.area_record['8'] = list(set(self.area_record['8']))
+            elif other_utm_position[0]<x[5] and other_utm_position[1]>y[5]:
+                if other_utm_position[0]<x[4] and other_utm_position[1]<y[6]:
+                    # ID:27
+                    self.area_record['27'].append(1)
+                    #rospy.logwarn(27)
+                    self.area_record['27'] = list(set(self.area_record['27']))
+                elif other_utm_position[0]>x[4] and other_utm_position[1]>y[6]:
+                    # ID:25
+                    self.area_record['25'].append(1)
+                    #rospy.logwarn(25)
+                    self.area_record['25'] = list(set(self.area_record['25']))
+                elif other_utm_position[0]<x[4] and other_utm_position[1]>y[6]:
+                    # ID:26
+                    self.area_record['26'].append(1)
+                    #rospy.logwarn(26)
+                    self.area_record['26'] = list(set(self.area_record['26']))
+                elif other_utm_position[0]>x[4] and other_utm_position[1]<y[6]:
+                    # ID:24
+                    self.area_record['24'].append(1)
+                    #rospy.logwarn(24)
+                    self.area_record['24'] = list(set(self.area_record['24']))
+            elif other_utm_position[0]>x[5] and other_utm_position[1]<y[5]:
+                if other_utm_position[0]<x[6] and other_utm_position[1]<y[4]:
+                    # ID:13
+                    self.area_record['13'].append(1)
+                    #rospy.logwarn(13)
+                    self.area_record['13'] = list(set(self.area_record['13']))
+                elif other_utm_position[0]>x[6] and other_utm_position[1]>y[4]:
+                    # ID:7
+                    self.area_record['7'].append(1)
+                    #rospy.logwarn(7)
+                    self.area_record['7'] = list(set(self.area_record['7']))
+                elif other_utm_position[0]<x[6] and other_utm_position[1]>y[4]:
+                    # ID:12
+                    self.area_record['12'].append(1)
+                    #rospy.logwarn(12)
+                    self.area_record['12'] = list(set(self.area_record['12']))
+                elif other_utm_position[0]>x[6] and other_utm_position[1]<y[4]:
+                    # ID:6
+                    self.area_record['6'].append(1)
+                    #rospy.logwarn(6)
+                    self.area_record['6'] = list(set(self.area_record['6']))
+        # second
+        elif other_utm_position[0]<x[3] and other_utm_position[1]>y[3]:
+            if other_utm_position[0]<x[1] and other_utm_position[1]<y[5]:
+                if other_utm_position[0]<x[0] and other_utm_position[1]<y[4]:
+                    # ID:49
+                    self.area_record['49'].append(1)
+                    #rospy.logwarn(49)
+                    self.area_record['49'] = list(set(self.area_record['49']))
+                elif other_utm_position[0]>x[0] and other_utm_position[1]>y[4]:
+                    # ID:43
+                    self.area_record['43'].append(1)
+                    #rospy.logwarn(43)
+                    self.area_record['43'] = list(set(self.area_record['43']))
+                elif other_utm_position[0]<x[0] and other_utm_position[1]>y[4]:
+                    # ID:48
+                    self.area_record['48'].append(1)
+                    #rospy.logwarn(48)
+                    self.area_record['48'] = list(set(self.area_record['48']))
+                elif other_utm_position[0]>x[0] and other_utm_position[1]<y[4]:
+                    # ID:42
+                    self.area_record['42'].append(1)
+                    #rospy.logwarn(42)
+                    self.area_record['42'] = list(set(self.area_record['42']))
+            elif other_utm_position[0]>x[1] and other_utm_position[1]>y[5]:
+                if other_utm_position[0]<x[2] and other_utm_position[1]<y[6]:
+                    # ID:39
+                    self.area_record['39'].append(1)
+                    #rospy.logwarn(39)
+                    self.area_record['39'] = list(set(self.area_record['39']))
+                elif other_utm_position[0]>x[2] and other_utm_position[1]>y[6]:
+                    # ID:37
+                    self.area_record['37'].append(1)
+                    #rospy.logwarn(37)
+                    self.area_record['37'] = list(set(self.area_record['37']))
+                elif other_utm_position[0]<x[2] and other_utm_position[1]>y[6]:
+                    # ID:38
+                    self.area_record['38'].append(1)
+                    #rospy.logwarn(38)
+                    self.area_record['38'] = list(set(self.area_record['38']))
+                elif other_utm_position[0]>x[2] and other_utm_position[1]<y[6]:
+                    # ID:36
+                    self.area_record['36'].append(1)
+                    #rospy.logwarn(36)
+                    self.area_record['36'] = list(set(self.area_record['36']))
+            elif other_utm_position[0]<x[1] and other_utm_position[1]>y[5]:
+                if other_utm_position[0]<x[0] and other_utm_position[1]<y[6]:
+                    # ID:47
+                    self.area_record['47'].append(1)
+                    #rospy.logwarn(47)
+                    self.area_record['47'] = list(set(self.area_record['47']))
+                elif other_utm_position[0]>x[0] and other_utm_position[1]>y[6]:
+                    # ID:45
+                    self.area_record['45'].append(1)
+                    #rospy.logwarn(45)
+                    self.area_record['45'] = list(set(self.area_record['45']))
+                elif other_utm_position[0]<x[0] and other_utm_position[1]>y[6]:
+                    # ID:46
+                    self.area_record['46'].append(1)
+                    #rospy.logwarn(46)
+                    self.area_record['46'] = list(set(self.area_record['46']))
+                elif other_utm_position[0]>x[0] and other_utm_position[1]<y[6]:
+                    # ID:44
+                    self.area_record['44'].append(1)
+                    #rospy.logwarn(44)
+                    self.area_record['44'] = list(set(self.area_record['44']))
+            elif other_utm_position[0]>x[1] and other_utm_position[1]<y[5]:
+                if other_utm_position[0]<x[2] and other_utm_position[1]<y[4]:
+                    # ID:41
+                    self.area_record['41'].append(1)
+                    #rospy.logwarn(41)
+                    self.area_record['41'] = list(set(self.area_record['41']))
+                elif other_utm_position[0]>x[2] and other_utm_position[1]>y[4]:
+                    # ID:35
+                    self.area_record['35'].append(1)
+                    #rospy.logwarn(35)
+                    self.area_record['35'] = list(set(self.area_record['35']))
+                elif other_utm_position[0]<x[2] and other_utm_position[1]>y[4]:
+                    # ID:40
+                    self.area_record['40'].append(1)
+                    #rospy.logwarn(40)
+                    self.area_record['40'] = list(set(self.area_record['40']))
+                elif other_utm_position[0]>x[2] and other_utm_position[1]<y[4]:
+                    # ID:34
+                    self.area_record['34'].append(1)
+                    #rospy.logwarn(34)
+                    self.area_record['34'] = list(set(self.area_record['34']))
+        # forth
+        elif other_utm_position[0]>x[3] and other_utm_position[1]<y[3]:
+            if other_utm_position[0]<x[5] and other_utm_position[1]<y[1]:
+                if other_utm_position[0]<x[4] and other_utm_position[1]<y[0]:
+                    # ID:33
+                    self.area_record['33'].append(1)
+                    #rospy.logwarn(33)
+                    self.area_record['33'] = list(set(self.area_record['33']))
+                elif other_utm_position[0]>x[4] and other_utm_position[1]>y[0]:
+                    # ID:19
+                    self.area_record['19'].append(1)
+                    #rospy.logwarn(19)
+                    self.area_record['19'] = list(set(self.area_record['19']))
+                elif other_utm_position[0]<x[4] and other_utm_position[1]>y[0]:
+                    # ID:32
+                    self.area_record['32'].append(1)
+                    #rospy.logwarn(32)
+                    self.area_record['32'] = list(set(self.area_record['32']))
+                elif other_utm_position[0]>x[4] and other_utm_position[1]<y[0]:
+                    # ID:18
+                    self.area_record['18'].append(1)
+                    #rospy.logwarn(18)
+                    self.area_record['18'] = list(set(self.area_record['18']))
+            elif other_utm_position[0]>x[5] and other_utm_position[1]>y[1]:
+                if other_utm_position[0]<x[6] and other_utm_position[1]<y[2]:
+                    # ID:15
+                    self.area_record['15'].append(1)
+                    #rospy.logwarn(15)
+                    self.area_record['15'] = list(set(self.area_record['15']))
+                elif other_utm_position[0]>x[6] and other_utm_position[1]>y[2]:
+                    # ID:5
+                    self.area_record['5'].append(1)
+                    #rospy.logwarn(5)
+                    self.area_record['5'] = list(set(self.area_record['5']))
+                elif other_utm_position[0]<x[6] and other_utm_position[1]>y[2]:
+                    # ID:14
+                    self.area_record['14'].append(1)
+                    #rospy.logwarn(14)
+                    self.area_record['14'] = list(set(self.area_record['14']))
+                elif other_utm_position[0]>x[6] and other_utm_position[1]<y[2]:
+                    # ID:4
+                    self.area_record['4'].append(1)
+                    #rospy.logwarn(4)
+                    self.area_record['4'] = list(set(self.area_record['4']))
+            elif other_utm_position[0]<x[5] and other_utm_position[1]>y[1]:
+                if other_utm_position[0]<x[4] and other_utm_position[1]<y[2]:
+                    # ID:31
+                    self.area_record['31'].append(1)
+                    #rospy.logwarn(31)
+                    self.area_record['31'] = list(set(self.area_record['31']))
+                elif other_utm_position[0]>x[4] and other_utm_position[1]>y[2]:
+                    # ID:21
+                    self.area_record['21'].append(1)
+                    #rospy.logwarn(21)
+                    self.area_record['21'] = list(set(self.area_record['21']))
+                elif other_utm_position[0]<x[4] and other_utm_position[1]>y[2]:
+                    # ID:30
+                    self.area_record['30'].append(1)
+                    #rospy.logwarn(30)
+                    self.area_record['30'] = list(set(self.area_record['30']))
+                elif other_utm_position[0]>x[4] and other_utm_position[1]<y[2]:
+                    # ID:20
+                    self.area_record['20'].append(1)
+                    #rospy.logwarn(20)
+                    self.area_record['20'] = list(set(self.area_record['20']))
+            elif other_utm_position[0]>x[5] and other_utm_position[1]<y[1]:
+                if other_utm_position[0]<x[6] and other_utm_position[1]<y[0]:
+                    # ID:17
+                    self.area_record['17'].append(1)
+                    #rospy.logwarn(17)
+                    self.area_record['17'] = list(set(self.area_record['17']))
+                elif other_utm_position[0]>x[6] and other_utm_position[1]>y[0]:
+                    # ID:3
+                    self.area_record['3'].append(1)
+                    #rospy.logwarn(3)
+                    self.area_record['3'] = list(set(self.area_record['3']))
+                elif other_utm_position[0]<x[6] and other_utm_position[1]>y[0]:
+                    # ID:16
+                    self.area_record['16'].append(1)
+                    #rospy.logwarn(16)
+                    self.area_record['16'] = list(set(self.area_record['16']))
+                elif other_utm_position[0]>x[6] and other_utm_position[1]<y[0]:
+                    # ID:2
+                    self.area_record['2'].append(1)
+                    #rospy.logwarn(2)
+                    self.area_record['2'] = list(set(self.area_record['2']))
+
+
+
+class cost_map:
+    def __init__(self):
+        self.publisher = rospy.Publisher("cost_map",cost_map_msg,queue_size=10)
+        
+        rospy.init_node("cost_map",anonymous=True)
+
+        rospy.logwarn(utm_positions)
+        #rospy.logwarn(utm_origin)
+        #rospy.logwarn(waypoints)
+
+        self.rate = rospy.Rate(5)
+        self.map = cost_map_msg()
+        
+        # initialize the cost map with punish:0, reward:2
+        # reward is calculated by max reward minus the number of ships reached the zone
+        for i in range(area_num):
+            self.map.punish.append(0)
+            self.map.reward.append(2)
+        self.polardef()
+        self.publish()
+        
+
+    def print_map(self):
+        for i in range(area_num):
+            rospy.logwarn('ID: '+str(i+2)+'  reward: '+
+            str(self.map.reward[i])+'  punish: '+
+            str(self.map.punish[i]))
+    
+    def polardef(self):
+        ang_pol = [ 0,
+                   13.3727803547,
+                   25.9524035025,
+                   27.0751750586,
+                   30.4378864816,
+                   35.6660200539,
+                   42.0349112634,
+                   49.7665534516,
+                   58.2972310405,
+                   64.8124671853,
+                   71.964538913,
+                   79.8079847501,
+                   89.7055041223,
+                   98.2026979197,
+                   112.8408218317,
+                   122.0785817886,
+                   131.0447776393,
+                   139.5439071043,
+                   151.1246799202,
+                   162.550911114,
+                   175.4021514163,
+                   180,]
+
+        speed_pol = [0.0620155039,
+                     0.0769833174,
+                     0.1566796511,
+                     0.2423907054,
+                     0.3651209659,
+                     0.4761790727,
+                     0.5978118655,
+                     0.7203837181,
+                     0.8119202931,
+                     0.8693697206,
+                     0.9346114548,
+                     0.9762073829,
+                     1.0001019704,
+                     0.9925925807,
+                     0.9593461558,
+                     0.9271178874,
+                     0.8870117091,
+                     0.8327395402,
+                     0.7718802369,
+                     0.733971012,
+                     0.6907957239,
+                     0.688696381,]
+        self.polar = scipy.interpolate.interp1d(ang_pol, speed_pol)
+
+    def update_map(self):
+        # reward & punish: 0-47 ID:2-49     i----i+2
+        for i in range(area_num):
+            # update reward
+            self.map.reward[i] = reward_max - len(info.area_record[str(i+2)])
+            # update punish
+            delta_x = utm_positions[i][0] - info.my_utm_position[0]
+            delta_y = utm_positions[i][1] - info.my_utm_position[1]
+            #rospy.logwarn(info.my_utm_position)
+            distance = math.sqrt(delta_x**2+delta_y**2)
+            #rospy.logwarn(str(i)+': '+str(distance))
+            goal = math.atan2(delta_x,delta_y)/math.pi*180
+            if goal < 0:
+                goal = goal + 360
+            #rospy.logwarn(str(i)+':'+str(goal))
+            wind_goal = abs(info.wind_direction_apparent - (360 - info.heading) - goal)%360
+            wind_goal = 180 - abs(wind_goal - 180)
+
+            rotation_angle = abs(info.heading - goal)/180*math.pi
+            #rospy.logwarn(rotation_angle)
+
+            self.map.punish[i] = int(distance/self.polar(wind_goal) + rotation_coefficient*rotation_angle)
+
+        
+
+    def publish(self):
+        while not rospy.is_shutdown():
+            self.update_map()
+            self.print_map()
+            self.publisher.publish(self.map)
+            self.rate.sleep()
+
+    
+    
+
+
+if __name__ == '__main__':
+    try:
+        info = info()
+        rospy.Subscriber('/whole/pirate/wind_direction_apparent', Float64, info.update_wind)
+        rospy.Subscriber('/whole/greenBoat/heading', Float32, info.update_heading)
+        rospy.Subscriber('/whole/greenBoat/position',NavSatFix,info.update_other_position)
+        rospy.Subscriber('/whole/pirate/position',NavSatFix,info.update_my_position)
+        cost_map()
+    except rospy.ROSInterruptException:
+        pass
