@@ -1,5 +1,5 @@
 rudder/pin: 13
-rudder/PWMoffset: -20
+rudder/PWMoffset: 0
 rudder/servolowerlimits: 1000
 rudder/servohigherlimits: 2000
 
