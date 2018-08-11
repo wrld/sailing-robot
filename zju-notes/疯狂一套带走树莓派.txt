@@ -1,0 +1,38 @@
+1 烧写系统
+2 /boot目录下放一个ssh空文件
+3 开路由器看地址，ssh连接 打开vnc xrdp
+4 修改分辨率（图形界面或命令行 resolution）
+5 修改镜像源（加速下载等）
+sudo nano /etc/apt/sources.list
+http://mirrors.zju.edu.cn/raspbian/raspbian/
+6 更新系统
+sudo apt-get update
+
+开热点
+7 下载项目
+git clone https://github.com/oblique/create_ap
+cd create_ap
+sudo make install
+8 依赖库
+sudo apt-get install util-linux procps hostapd iproute2 iw haveged dnsmasq
+9 使用
+sudo create_ap wlan0 eth0 热点名 密码
+开机启动设置
+sudo nano /etc/rc.local
+把sudo create_ap wlan0 eth0 热点名 密码 加到exit 0前
+
+开串口
+注意ttl转usb模块上的两个开关位置是1on2off
+10 下载调试软件 
+sudo apt-get install minicom  
+11 sudo systemctl disable hciuart
+sudo nano /lib/systemd/system/hciuart.service  
+删去wants 行
+After 行改为：After=dev-ttyS0.device
+ExecStart行改为：ExecStart=/usr/bin/hciattach /dev/ttyS0 bcm43xx 921600 noflow -
+12 sudo nano /boot/config.txt
+末尾添加 dtoverlay=pi3-miniuart-bt
+13 sudo nano /boot/cmdline.txt
+改为dwc_otg.lpm_enable=0  console=tty1 root=/dev/mmcblk0p2 rootfstype=ext4  elevator=deadline fsck.repair=yes   rootwait
+14 使用方法
+sudo minicom -b 115200 -o -D /dev/ttyAMA0 ctrl+A  Q退出 ctrl+A E 回显
