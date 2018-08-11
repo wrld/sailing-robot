@@ -15,31 +15,33 @@
 #                     '178': 1,
 #                     '180': 1,
 #                     }
+# sailsettings/table: {'0 ': 2070,
+#                     '33.38': 1950
+#                     '53.14': 1850,
+#                     '77.3': 1750,
+#                     '90': 1650,
+#                     '115.98': 1550,
+#                     '123.8': 1450,
+#                     '180': 1450,
+                    
+                    
+#                     }
 
-sailsettings/table: {'0': 0,
-                     '17': 0.1667,
-                     '46': 0.3333,
-                     '80': 0.5,
-                     '110': 0.6667,
-                     '140': 0.8333,
-                     '165': 1,
-                     '180': 1,
-                      }
-
-#sailsettings/table: {'0': 1500,
- #                    '17': 1600,
-  #                   '46': 1700,
-  #                   '80': 1800,
-   #                  '110': 1900,
-    #                 '140': 2000,
-     #                '180': 2100,
-      #               
-       #              
-   #                  }
+sailsettings/table: {'0 ': 1,
+                    '33': 0.806,
+                    '53': 0.645,
+                    '77': 0.483,
+                    '90': 0.322,
+                    '116': 0.161,
+                    '124': 0.052,
+                    '180': 0,
+                    
+                    
+                    }
 
 # Servo PWM limits in microseconds
-sail/servolowerlimits: 1500
-sail/servohigherlimits: 2100
+sail/servolowerlimits: 1450
+sail/servohigherlimits: 2070
 sail/PWMoffset: 0
 
 sailsettings/windSpeed: 2
