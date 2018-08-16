@@ -1,0 +1,7 @@
+rudder/pin: 13
+rudder/PWMoffset: 0
+rudder/servolowerlimits: 1100
+rudder/servohigherlimits: 1900
+
+sail/pin: 24
+# Sail PWM limits moved to sailsettings config files

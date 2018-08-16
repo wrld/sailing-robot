@@ -1,0 +1,51 @@
+# Sail position settings for sail sets 2 and 3 (medium & smaller sails)
+
+# format: wind angle (as read from wind sensor), wind speed (m/s), scaled servo PWM
+# scaled servo PWM: 0 = sail fully sheeted in, min PWM; 1 = sail fully out, max PWM
+# linearly scaled inbetween
+# CAUTION: include 0 angle and 180 angle, since those are the initial values in the lookup script
+
+# sailsettings/table: {'0': 0,
+#                     '36': 0,
+#                     '40': 0.0519,
+#                     '53': 0.0889,
+#                     '85': 0.2222,
+#                     '105': 0.4444,
+#                     '160': 0.7555,
+#                     '178': 1,
+#                     '180': 1,
+#                     }
+
+sailsettings/table: {'0': 1,
+                     '5': 0.82,
+                     '27': 0.746,
+                     '34': 0.6712,
+                     '40': 0.597,
+                     '60': 0.507,
+                     '72': 0.373,
+                     '90': 0.269,
+                     '100': 0.223,
+                     '110': 0.149,
+                     '116': 0.074,
+                     '140': 0,
+                     '180': 0,
+                      }
+
+#sailsettings/table: {'0 ': 2070,
+ #                    '33.38':1950
+   #                  '53.14': 1850,
+  #                   '77.3': 1750,
+  #                   '90': 1650,
+   #                  '115.98': 1550,
+    #                 '123.8': 1450,
+     #                '180': 1450,
+      #               
+       #              
+   #                  }
+
+# Servo PWM limits in microseconds
+sail/servolowerlimits: 1450
+sail/servohigherlimits: 2020
+sail/PWMoffset: 0
+
+sailsettings/windSpeed: 2
