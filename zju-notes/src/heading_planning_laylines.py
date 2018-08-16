@@ -133,7 +133,7 @@ class HeadingPlan(TaskBase):
         This returns a shapely Polygon with the two lines extended to
         LAYLINE_EXTENT (10km).
         """
-        ting_angle=30
+        ting_angle=30###decrease the triangle range
         downwind = angleSum(self.nav.absolute_wind_direction(), 180)
         x0, y0 = self.waypoint_xy.x, self.waypoint_xy.y
         l1 = math.radians(angleSum(downwind, ting_angle))
