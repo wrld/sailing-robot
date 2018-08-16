@@ -34,7 +34,7 @@ PUB_SAILSHEET = rospy.Publisher('sailsheet_normalized', Float32, queue_size=10)
 PUB_dbg_helming = rospy.Publisher('dbg_helming_procedure', String, queue_size=10)
 
 PUB_tack_kind = rospy.Publisher('dbg_tack_kind', String, queue_size = 10)
-
+### procedure continues transmitting
 
 data = PID_Data()
 rudder = rospy.get_param('rudder')
