@@ -9,7 +9,7 @@ import rospy
 from LatLon import LatLon
 import time
 import types
-
+###add new publisher to continue publish waypoints
 from sailing_robot.msg import ll
 from .navigation import Navigation
 from .heading_planning_laylines import HeadingPlan
