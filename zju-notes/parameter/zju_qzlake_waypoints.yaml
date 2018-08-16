@@ -1,0 +1,31 @@
+
+# for simplified entry of path, simply add list of waypoint names
+# starts with list entry 0, continues until end is reached
+    # wp/list: ["1", "2", "3", 
+    #           "1", "2", "3",
+    #           "1", "2", "3",
+    #           "1", "2", "3",
+    #           "1", "2", "3",
+    #           "1", "2", "3",
+    #           "1", "2", "3",
+    #           "1", "2", "3",
+    #           "1", "2", "3",
+    #           "1", "2", "3",
+    #         ]
+
+wp/list: ["1","2","3"] 
+wp/tasks: [
+   {"kind": "to_waypoint","waypoint":"1"},
+   {"kind": "to_waypoint","waypoint":"2"},
+   {"kind": "to_waypoint","waypoint":"3"},
+  ]
+# distance within waypoint is accepted, in [m]
+wp/acceptRadius: 2
+
+wp/tackVotingRadius: 100
+# Dictionary for looking up waypoints, using [lat, lon] format of NavSatFix
+#
+wp/table: {"1" : [30.30648, 120.08244],
+            "2" : [30.30638, 120.08254],
+            "3" : [30.30648, 120.08259],
+           }
