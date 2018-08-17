@@ -76,12 +76,13 @@ def set_sail(sheet_control, offset=0.0):
     
 
 def set_rudder(state, angle_to_wind=0):
+    flag_angle = 0
     if state is PID_GOAL_HEADING:
       #  rawangle = -(data.heading, data.goal_heading)
         
         rawangle = angle_subtract(data.heading, data.goal_heading)
         if rawangle>170 or rawangle<-170:
-            pass
+            flag_angle = 1
         else:
             rawangle = -controller.update_PID(rawangle)
             angle = _PID.saturation(rawangle,-rudder['maxAngle'], rudder['maxAngle'])
@@ -99,7 +100,10 @@ def set_rudder(state, angle_to_wind=0):
 
     # if sail_data.velocity <= BOAT_VELOCITY_LIMITS:
     #      angle = 0
-    PUB_RUDDER.publish(int(angle))
+    if flag_angle:
+        pass
+    else:
+        PUB_RUDDER.publish(int(angle))
 
 ##########################################################################
 
