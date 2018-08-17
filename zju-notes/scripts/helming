@@ -80,8 +80,12 @@ def set_rudder(state, angle_to_wind=0):
       #  rawangle = -(data.heading, data.goal_heading)
         
         rawangle = angle_subtract(data.heading, data.goal_heading)
-        rawangle = -controller.update_PID(rawangle)
-        angle = _PID.saturation(rawangle,-rudder['maxAngle'], rudder['maxAngle'])
+        if rawangle>170 or rawangle<-170:
+            pass
+        else:
+            rawangle = -controller.update_PID(rawangle)
+            angle = _PID.saturation(rawangle,-rudder['maxAngle'], rudder['maxAngle'])
+        ### Angle buffer
 
     elif state is PID_ANGLE_TO_WIND:
         rawangle = -controller.update_PID(angle_subtract(angle_to_wind, sail_data.wind_direction_apparent)) 
