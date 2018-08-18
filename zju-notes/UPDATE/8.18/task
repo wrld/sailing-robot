@@ -70,7 +70,7 @@ if __name__ == '__main__':
         rospy.Subscriber('last_task', Int16, continue_last_task)
         task = chunyu
         if task == -1
-            time.sleep(10)
+            time.sleep(100)
 
         #first start sleep for 100s
 
