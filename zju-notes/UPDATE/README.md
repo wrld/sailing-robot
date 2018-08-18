@@ -46,4 +46,6 @@
                    self.sailing_state = 'normal'
    ```
 
-   
+3. 修改default.yaml文件中的hsv颜色范围，识别颜色为橙色
+
+4. 修改camera_detect节点，增加一个topic：detected_percent，记录检测到的比例
