@@ -1,0 +1,327 @@
+#!/usr/bin/env python
+#using astar method to plan a route while the costmap was updated  
+
+
+import rospy
+from std_msgs.msg import Float64, Float32, Int16, String
+from sailing_robot.navigation import Navigation
+from sensor_msgs.msg import NavSatFix
+from sailing_robot.msg import cost_map_msg
+import numpy as np
+import math
+import scipy.interpolate
+
+area_num = 64
+rotation_coefficient = 1
+class Point:
+    def __init__(self,x,y):
+        self.x=x;self.y=y
+ 
+    def __eq__(self, other):
+        if self.x==other.x and self.y==other.y:
+            return True
+        return False
+    
+    def __str__(self):
+        return "x:"+str(self.x)+",y:"+str(self.y)
+
+class astar:
+    #to receive the msg for the node:cost_map
+    class Node:
+        def __init__(self,point,endpoint,g=0):
+            self.point = point              #own node
+            self.father = None              #father node
+            self.g = g                      #value g
+            self.delta_x = abs(endpoint.x-point.x)*20
+            self.delta_y = abs(endpoint.y-point.y)*20
+            self.h = 0
+    
+    def __init__(self):
+        rospy.init_node("astar_planning",anonymous=True)
+        rospy.Subscriber('/whole/pirate/cost_map',cost_map_msg,self.update_costmap)
+        rospy.Subscriber('/whole/pirate/wind_direction_apparent', Float64, self.update_wind)
+        rospy.Subscriber('/whole/greenBoat/heading', Float32, self.update_heading)
+
+        self.rate = rospy.Rate(5)
+        self.map = cost_map_msg()
+        self.heading = 0
+        self.wind_direction_apparent = 0
+        #create a map which is arrat2D to show the planned path
+        self.width = 8
+        self.length = 9
+        self.map_data = [0]*self.length*self.width
+        #open  list
+        self.openList = []
+        #close list
+        self.closeList =[]
+        #startpoint and endpoint 
+        self.startpoint = Point(0,0)
+        self.endpoint = Point(0,0)
+        #list for the points which have been passed by our boat
+        self.passnode = []
+
+        self.polardef()
+        self.publish()
+    
+    def update_costmap(self, msg):
+        self.map = msg
+
+        start_y = math.ceil(self.map.startpoint/8.0)
+        start_x = self.map.startpoint - (start_y-1)*8.0
+        self.startpoint = Point(int(start_x),int(start_y))
+        
+        end_y = math.ceil(self.map.endpoint/8.0)
+        end_x = self.map.endpoint - (end_y-1)*8.0
+        self.endpoint = Point(int(end_x),int(end_y))
+
+    def update_heading(self, msg):
+        self.heading = msg.data
+
+    def update_wind(self, msg):
+        self.wind_direction_apparent = msg.data
+
+    def print_map(self):
+        rospy.logwarn('------startpoint: '+str(self.map.startpoint)+'    endpoint: '+ str(self.map.endpoint)+'--------')
+        if len(self.map.reward)>0:
+            for i in range(area_num):
+                rospy.logwarn('ID: '+str(i+1)+'  reward: '+
+                str(self.map.reward[i])+'  punish: '+
+                str(self.map.punish[i]))
+
+    def print_map_array2D(self):
+        if len(self.map.reward)>0:
+            for y in range(self.length):
+                i = y * 8
+                rospy.logwarn(str(self.map_data[i])+ '  '+
+                str(self.map_data[i+1])+'  '+
+                str(self.map_data[i+2])+'  '+
+                str(self.map_data[i+3])+'  '+
+                str(self.map_data[i+4])+'  '+
+                str(self.map_data[i+5])+'  '+
+                str(self.map_data[i+6])+'  '+
+                str(self.map_data[i+7])+'  ')
+            rospy.logwarn('---------------------------------------------------------')
+
+     
+    def getMinNode(self):
+        #get the node which has the minimum value F
+        currentNode=self.openList[0]
+        currentNode.h = self.get_Node_h(currentNode)
+        for node in self.openList:
+            node.h = self.get_Node_h(node)
+            if node.g+node.h<currentNode.g+currentNode.h:
+                currentNode=node
+        return currentNode
+
+    def pointInCloseList(self,point):
+        #judge if the point is in the closelist
+        for node in self.closeList:
+            if node.point==point:
+                return True
+        return False
+    
+    def pointInOpenList(self,point):
+        #judge if the point is in the openlist
+        for node in self.openList:
+            if node.point==point:
+                return node
+        return None
+
+    def endPointInCloseList(self):
+        #judge if the endpoint is in the closelist
+        for node in self.openList:
+            if node.point==self.endpoint:
+                return node
+        return None
+
+    def polardef(self):
+        ang_pol = [ 0,
+                   13.3727803547,
+                   25.9524035025,
+                   27.0751750586,
+                   30.4378864816,
+                   35.6660200539,
+                   42.0349112634,
+                   49.7665534516,
+                   58.2972310405,
+                   64.8124671853,
+                   71.964538913,
+                   79.8079847501,
+                   89.7055041223,
+                   98.2026979197,
+                   112.8408218317,
+                   122.0785817886,
+                   131.0447776393,
+                   139.5439071043,
+                   151.1246799202,
+                   162.550911114,
+                   175.4021514163,
+                   180,]
+
+        speed_pol = [0.0620155039,
+                     0.0769833174,
+                     0.1566796511,
+                     0.2423907054,
+                     0.3651209659,
+                     0.4761790727,
+                     0.5978118655,
+                     0.7203837181,
+                     0.8119202931,
+                     0.8693697206,
+                     0.9346114548,
+                     0.9762073829,
+                     1.0001019704,
+                     0.9925925807,
+                     0.9593461558,
+                     0.9271178874,
+                     0.8870117091,
+                     0.8327395402,
+                     0.7718802369,
+                     0.733971012,
+                     0.6907957239,
+                     0.688696381,]
+        self.polar = scipy.interpolate.interp1d(ang_pol, speed_pol)
+
+    def get_Node_h(self,Node):
+        distance = math.sqrt(Node.delta_x**2+Node.delta_y**2)
+        goal = math.atan2(Node.delta_x,Node.delta_y)/math.pi*180
+        if goal < 0:
+            goal = goal + 360
+        wind_goal = abs(self.wind_direction_apparent - (360 - self.heading) - goal)%360
+        wind_goal = 180 - abs(wind_goal - 180)
+        Node_h = int(distance/self.polar(wind_goal))
+        return Node_h
+
+    def searchNear(self,minF,offsetX,offsetY):
+        #judge if the point is out of the map
+        if minF.point.x+offsetX<0 or minF.point.x+offsetX>self.width-1 or minF.point.y + offsetY < 0 or minF.point.y + offsetY > self.length-1 :
+            return
+        #if this point is a obstacle(by taged as "*  " or 0.0)
+        if self.map_data[minF.point.x+offsetX+(minF.point.y+offsetY)*8-1] =='*  ' or self.map_data[minF.point.x+offsetX+(minF.point.y+offsetY)*8] ==str(0.0):
+            return
+        #if the node is in the closelist, then neglect it
+        if self.pointInCloseList(Point(minF.point.x+offsetX,minF.point.y+offsetY)):
+            return
+        #caculate the step punish
+        if offsetX==0 and offsetY==1:
+            goal = 0.0
+            distance = 20.0
+        elif offsetX==1 and offsetY==1:
+            goal = 45.0
+            distance = 28.0
+        elif offsetX==1 and offsetY==0:
+            goal = 90.0
+            distance = 20.0
+        elif offsetX==1 and offsetY==-1:
+            goal = 135.0
+            distance = 28.0
+        elif offsetX==0 and offsetY==-1:
+            goal = 180.0
+            distance = 20.0
+        elif offsetX==-1 and offsetY==-1:
+            goal = 225.0
+            distance = 28.0
+        elif offsetX==-1 and offsetY==0:
+            goal = 270.0
+            distance = 20.0
+        elif offsetX==-1 and offsetY==1:
+            goal = 315.0
+            distance = 28.0
+
+        wind_goal = abs(self.wind_direction_apparent - (360 - self.heading) - goal)%360
+        wind_goal = 180 - abs(wind_goal - 180)
+        rotation_angle = abs(self.heading - goal)/180*math.pi
+        step = int(distance/self.polar(wind_goal) + rotation_coefficient*rotation_angle)
+        #if this node is not in the openlist, then add it
+        currentNode=self.pointInOpenList(Point(minF.point.x+offsetX,minF.point.y+offsetY))
+        if not currentNode:
+            currentNode=astar.Node(Point(minF.point.x+offsetX,minF.point.y+offsetY),self.endpoint,g=minF.g+step)
+            currentNode.father=minF
+            self.openList.append(currentNode)
+            return
+        #judge if its value g is smaller than the minF
+        if minF.g+step<currentNode.g: 
+            currentNode.g=minF.g+step
+            currentNode.father=minF
+
+    def start(self):
+        #put the startpoint in the openlist
+        self.openList = []
+        self.closeList = []
+        startNode=astar.Node(self.startpoint,self.endpoint)
+        self.openList.append(startNode)
+        
+        #the main loop
+        while True:
+            #get the node which has the minimum value F
+            minF=self.getMinNode()
+            #put this node in the closelist, then delete it from the openlist
+            self.closeList.append(minF)
+            self.openList.remove(minF)
+
+            #judge the nodes which are near the parent node
+            self.searchNear(minF,0,1)
+            #self.searchNear(minF,1,1)
+            self.searchNear(minF,1,0)
+            #self.searchNear(minF,1,-1)
+            self.searchNear(minF,0,-1)
+            #self.searchNear(minF,-1,-1)
+            self.searchNear(minF,-1,0)
+            #self.searchNear(minF,-1,1)
+            #judge if reach the endpoint
+            point=self.endPointInCloseList()
+            if point:
+                cPoint=point
+                pathList=[]
+                while True:
+                    if cPoint.father:
+                        pathList.append(cPoint.point)
+                        cPoint=cPoint.father
+                    else:
+                        # print(pathList)
+                        # print(list(reversed(pathList)))
+                        # print(pathList.reverse())
+                        return list(reversed(pathList))
+            if len(self.openList)==0:
+                return None
+
+    def publish(self):
+        while not rospy.is_shutdown():
+            if self.map.startpoint!=0 or self.map.endpoint!=0:
+                #update the map2D
+                for y in range(self.length):
+                    if y<= 7 and len(self.map.reward)>0:
+                        for x in range(self.width):
+                            i = x + y * 8
+                            self.map_data[i] = str(self.map.reward[i])
+                    elif len(self.map.reward)>0:
+                        for x in range(self.width):
+                            i = x + y * 8
+                            self.map_data[i] = str(0.0)
+                #record the points which have been passed
+                if self.startpoint not in self.passnode:
+                    self.passnode.append(self.startpoint)
+                if Point(0,0) in self.passnode:
+                    self.passnode.remove(Point(0,0))            
+                for point in self.passnode:
+                    i = point.x + (point.y-1)*8
+                    self.map_data[i-1] = '*  '
+
+                #use the astar method to planning the path
+                pathList = self.start()
+            
+                #show the path in the map2D
+                if pathList != None:
+                    for point in pathList:
+                        i = point.x + (point.y-1)*8
+                        self.map_data[i-1] = '#  '
+                    self.print_map_array2D()
+
+            self.rate.sleep()
+
+if __name__ == '__main__':
+    try:
+        astar()
+
+    except rospy.ROSInterruptException:
+        pass
