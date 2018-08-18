@@ -1,0 +1,209 @@
+#!/usr/bin/python
+
+import rospy
+from std_msgs.msg import Float64, Float32, Int16, String
+from sailing_robot.navigation import Navigation
+from sensor_msgs.msg import NavSatFix
+from sailing_robot.msg import cost_map_msg
+import numpy as np
+import math
+import scipy.interpolate
+
+wp_table = rospy.get_param('wp/table')
+waypoints = []
+waypoints.append(wp_table['A']) #utm_positions[0]
+waypoints.append(wp_table['B']) #utm_positions[1]
+waypoints.append(wp_table['D']) #utm_positions[2]
+waypoints.append(wp_table['E']) #utm_positions[3]
+utm_zone = rospy.get_param('navigation/utm_zone')
+nav = Navigation(utm_zone=utm_zone)
+utm_positions = np.array([nav.latlon_to_utm(wp[0],wp[1]) for wp in waypoints])
+map_length = utm_positions[0][0] - utm_positions[2][0]
+map_width = utm_positions[3][1] - utm_positions[0][1]
+area_num = 64
+reward_max = 2
+rotation_coefficient = 1
+
+
+class info:
+    def __init__(self):
+        self.heading = 0
+        self.other_position = NavSatFix()
+        self.my_position = NavSatFix()
+        self.my_utm_position = np.array([0,0])
+        self.nav = Navigation(utm_zone=utm_zone)
+        self.wind_direction_apparent = 0
+        self.area_record = {}
+        self.node_x = 0
+        self.node_y = 0
+        self.node_number = 72
+        for i in range(64):
+            self.area_record[str(i)] = []
+        
+
+    def update_heading(self, msg):
+        self.heading = msg.data
+
+    def update_wind(self, msg):
+        self.wind_direction_apparent = msg.data
+    
+    def update_my_position(self, msg):
+        self.my_position = msg
+        self.my_utm_position = np.array(nav.latlon_to_utm(msg.latitude,msg.longitude))
+        self.node_number =self.judgment_node(self.my_utm_position)
+
+        if self.node_x<=8 and self.node_y <=8 and self.node_x >0 and self.node_y >0:
+            self.area_record[str(self.node_number-1)].append('private')
+            self.area_record[str(self.node_number-1)] = list(set(self.area_record[str(self.node_number-1)]))
+
+    def update_other_position(self, msg):
+        self.update_other_position = msg
+        other_utm_position = np.array(nav.latlon_to_utm(msg.latitude,msg.longitude))
+
+        # find out which zone does the greenboat belong to,
+        # and append its ID number to the zone's listss
+        node_number = self.judgment_node(other_utm_position)
+        if self.node_x<=8 and self.node_y <=8 and self.node_x >0 and self.node_y >0:
+            self.area_record[str(node_number-1)].append('other')
+            self.area_record[str(node_number-1)] = list(set(self.area_record[str(node_number-1)]))
+ 
+    def judgment_node(self,position):
+        self.node_x = math.ceil((position[0]-utm_positions[2][0]) / map_length * 8)
+        self.node_y = math.ceil((utm_positions[3][1]-position[1]) / map_width * 8)
+        
+        node_number = int(8 * (self.node_y - 1) + self.node_x)
+        return node_number
+
+
+class cost_map:
+    def __init__(self):
+        self.publisher = rospy.Publisher("cost_map",cost_map_msg,queue_size=10)
+        rospy.init_node("cost_map",anonymous=True)
+        
+        self.rate = rospy.Rate(5)
+        self.map = cost_map_msg()
+
+        # initialize the cost map with punish:0, reward:2
+        # reward is calculated by max reward minus the number of ships reached the zone
+        for i in range(area_num):
+            self.map.punish.append(0)
+            self.map.reward.append(2)
+        self.polardef()
+        self.publish()
+
+
+    def polardef(self):
+        ang_pol = [ 0,
+                   13.3727803547,
+                   25.9524035025,
+                   27.0751750586,
+                   30.4378864816,
+                   35.6660200539,
+                   42.0349112634,
+                   49.7665534516,
+                   58.2972310405,
+                   64.8124671853,
+                   71.964538913,
+                   79.8079847501,
+                   89.7055041223,
+                   98.2026979197,
+                   112.8408218317,
+                   122.0785817886,
+                   131.0447776393,
+                   139.5439071043,
+                   151.1246799202,
+                   162.550911114,
+                   175.4021514163,
+                   180,]
+
+        speed_pol = [0.0620155039,
+                     0.0769833174,
+                     0.1566796511,
+                     0.2423907054,
+                     0.3651209659,
+                     0.4761790727,
+                     0.5978118655,
+                     0.7203837181,
+                     0.8119202931,
+                     0.8693697206,
+                     0.9346114548,
+                     0.9762073829,
+                     1.0001019704,
+                     0.9925925807,
+                     0.9593461558,
+                     0.9271178874,
+                     0.8870117091,
+                     0.8327395402,
+                     0.7718802369,
+                     0.733971012,
+                     0.6907957239,
+                     0.688696381,]
+        self.polar = scipy.interpolate.interp1d(ang_pol, speed_pol)
+
+
+    def update_map(self):
+        # reward & punish: 1-64 ID:1-64
+        endpoint_x_reward = 0
+        endpoint_y_reward = 0
+        reward_total = 0
+        for i in range(area_num):
+            # update reward
+            if ((i+1)/8)>=4 and ((i+1)%8)<=4 and ((i+1)%8)>0:
+                self.map.reward[i] = 0
+            else:
+                self.map.reward[i] = reward_max - len(info.area_record[str(i)])
+            
+            # update punish
+            y = math.ceil(float(i+1)/8)
+            x = i+1 - (y-1)*8
+
+            delta_x = (x-0.5)/8*map_length + utm_positions[2][0] - info.my_utm_position[0]
+            delta_y = (8.5-y)/8*map_width + utm_positions[0][1] - info.my_utm_position[1]
+            distance = math.sqrt(delta_x**2+delta_y**2)
+            goal = math.atan2(delta_x,delta_y)/math.pi*180  
+            
+            if goal < 0:
+                goal = goal + 360
+            
+            wind_goal = abs(info.wind_direction_apparent - (360 - info.heading) - goal)%360
+            wind_goal = 180 - abs(wind_goal - 180)
+
+            rotation_angle = abs(info.heading - goal)/180*math.pi
+            
+            self.map.punish[i] = int(distance/self.polar(wind_goal) + rotation_coefficient*rotation_angle)
+            
+            if info.area_record[str(i)] != 'private':
+                endpoint_x_reward = endpoint_x_reward + self.map.reward[i] * x
+                endpoint_y_reward = endpoint_y_reward + self.map.reward[i] * y
+                reward_total = reward_total + self.map.reward[i]
+        
+        #update endpoint
+        endpoint_x_reward = int(endpoint_x_reward / reward_total)    
+        endpoint_y_reward = int(endpoint_y_reward / reward_total)
+        
+        self.map.endpoint = int(endpoint_x_reward + (endpoint_y_reward-1) * 8)
+        
+        #update startpoint
+        self.map.startpoint = info.node_number
+
+
+        
+
+    def publish(self):
+        while not rospy.is_shutdown():
+            self.update_map()
+            self.publisher.publish(self.map)
+            self.rate.sleep()
+
+    
+
+if __name__ == '__main__':
+    try:
+        info = info()
+        rospy.Subscriber('/whole/pirate/wind_direction_apparent', Float64, info.update_wind)
+        rospy.Subscriber('/whole/greenBoat/heading', Float32, info.update_heading)
+        rospy.Subscriber('/whole/greenBoat/position',NavSatFix,info.update_other_position)
+        rospy.Subscriber('/whole/pirate/position',NavSatFix,info.update_my_position)
+        cost_map()
+    except rospy.ROSInterruptException:
+        pass
