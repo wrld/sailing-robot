@@ -21,6 +21,7 @@ from sailing_robot.cfg import TackVotingConfig
 from sensor_msgs.msg import NavSatFix
 
 chunyu = -1
+
 def goal_heading_publisher(tasks_runner,task):
     pub = rospy.Publisher("goal_heading", Float32, queue_size=10)
     pub_state = rospy.Publisher("sailing_state", String, queue_size=10)
@@ -59,22 +60,30 @@ def tack_voting_callback(config, level):
     threshold = config.threshold
     return config
 
-def continue_last_task(task)
-    chunyu = task
+def continue_last_task(msg):
+    global chunyu 
+    chunyu = msg.data
 
 if __name__ == '__main__':
     try:
         rospy.init_node("publish_goal_heading", anonymous=True)
 
         PUB_task_state = rospy.Publisher("task_state", String, queue_size=10)
+        rospy.logwarn("out out chunyu = " + str(chunyu))
+
         rospy.Subscriber('last_task', Int16, continue_last_task)
+        time.sleep(1)
         task = chunyu
-        if task == -1
-            time.sleep(100)
+        rospy.logwarn('task = ' + str(task))
+        if task == -1:
+            time.sleep(10)
+            rospy.logwarn('start our task!')
 
         #first start sleep for 100s
 
-        else task = task
+        else:
+            task = task
+            rospy.logwarn('start our task again!')
         #did break before
 
         # rospy.logwarn('begin delay')
