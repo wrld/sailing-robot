@@ -135,10 +135,10 @@ class HeadingPlan(TaskBase):
         """
         downwind = angleSum(self.nav.absolute_wind_direction(), 180)
         x0, y0 = self.waypoint_xy.x, self.waypoint_xy.y
-        l1 = math.radians(angleSum(downwind, -self.nav.beating_angle))
+        l1 = math.radians(angleSum(downwind, -35))
         x1 = x0 + (LAYLINE_EXTENT * math.sin(l1))
         y1 = y0 + (LAYLINE_EXTENT * math.cos(l1))
-        l2 = math.radians(angleSum(downwind, self.nav.beating_angle))
+        l2 = math.radians(angleSum(downwind, 35))
         x2 = x0 + (LAYLINE_EXTENT * math.sin(l2))
         y2 = y0 + (LAYLINE_EXTENT * math.cos(l2))
         return Polygon([(x0, y0), (x1, y1), (x2, y2)])
