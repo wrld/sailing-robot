@@ -155,7 +155,6 @@ class HeadingPlan(TaskBase):
         # rospy.logwarn('tack_now = '+ str(tack_now))
 
         if tack_now:
-            # rospy.logwarn('begin tack')
             # Ready about!
             if on_port_tack:
                 state = 'switch_to_stbd_tack'
@@ -166,23 +165,14 @@ class HeadingPlan(TaskBase):
             self.sailing_state = state
             self.log('info', 'Starting tack/jibe (%s)', state)
         else:
-            # rospy.logwarn('Stay on our current tack')
             # Stay on our current tack
             if on_port_tack:
                 goal_wind_angle = max(wp_wind_angle, self.nav.beating_angle)
             else:
                 goal_wind_angle = min(wp_wind_angle, -self.nav.beating_angle)
             state = 'normal'
-        # rospy.logwarn('state = ' + str(state))
-
+            
         self.debug_pub('dbg_goal_wind_angle', goal_wind_angle)
-["A"]
-        # rospy.logwarn('tack')
-        # rospy.logwarn('boat_wind_angle = ' + str(boat_wind_angle))
-        # rospy.logwarn('wp_wind_angle = ' + str(wp_wind_angle))
-        # rospy.logwarn('goal_angle = ' + str(goal_wind_angle))
-        # rospy.logwarn('heading_angle = ' + str(self.nav.wind_angle_to_heading(goal_wind_angle)))
-
         return state, self.nav.wind_angle_to_heading(goal_wind_angle)
 
     def lay_triangle(self):
