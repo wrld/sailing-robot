@@ -7,7 +7,7 @@ import numpy as np
 import random
 from std_msgs.msg import Float64, Float32, Int16, String
 
-from sailing_robot.msg import velocity
+from sailing_robot.msg import Velocity
 
 from sailing_robot.sail_table import SailTable, SailData
 
@@ -114,7 +114,7 @@ class ProcedureBase(object):
         self.start_time = time.time()
         self.timeout = timeout 
         self.sailing_state = sailing_state
-        self.boat_velocity = boat_velocity
+        # self.boat_velocity = boat_velocity
 
     def has_failed(self):
         """
@@ -141,10 +141,10 @@ class TackBasic(ProcedureBase):
 
     def loop(self):
 
-    	if boat_velocity > BOAT_VELOCITY_LIMITS :
-            set_sail(WIND)
-        else :
-            set_sail(WIND, offset=+0.2)
+    	# if boat_velocity > BOAT_VELOCITY_LIMITS :
+        set_sail(WIND)
+        # else :
+            # set_sail(WIND, offset=+0.2)
 
         if self.sailing_state == "switch_to_port_tack":
             set_rudder(RUDDER_FULL_RIGHT) 
@@ -307,7 +307,7 @@ class Helming():
 
                 set_sail(WIND)
 
-                PUB_dbg_kind.publish("normal")
+                PUB_tack_kind.publish("normal")
 
             else:
                 # Continuing a procedure
@@ -334,7 +334,7 @@ class Helming():
 
 
         # we advance to the next timestep 
-        PUB_dbg_kind.publish(str(self.Proc.currentProcedure))
+        PUB_tack_kind.publish(str(self.Proc.currentProcedure))
         self.Proc.currentProcedure.loop()
 
 
@@ -349,7 +349,7 @@ if __name__ == '__main__':
         rospy.Subscriber('tack_rudder', Float32, data.update_tack_rudder)
         
         # subscribe velocity
-        rospy.Subscriber('gps_velocity', velocity, sail_data.update_velocity)
+        rospy.Subscriber('gps_velocity', Velocity, sail_data.update_velocity)
 
         Helming()
     except rospy.ROSInterruptException:
