@@ -323,12 +323,12 @@ class astar:
                         i = point.x + (point.y-1)*8
                         self.waypoint.append(correspond[str(i)])
                         self.map_data[i-1] = '#  '
-                    self.print_map_array2D()
-                    self.waypoint = []
+                    self.print_map_array2D()  
             #use the self.waypoint to plan the next waypoint to the boat
             #...
             #
             
+            self.waypoint = []
             self.rate.sleep()
 
 if __name__ == '__main__':
